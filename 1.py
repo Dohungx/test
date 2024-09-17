@@ -58,27 +58,24 @@ def worker(target):
         password_queue.task_done()
 
 def Main(target):
-    num_threads = 4  # Số lượng luồng bạn muốn sử dụng
+    num_threads = 20  # Số lượng luồng bạn muốn sử dụng
 
     # Tạo luồng để thử mật khẩu
     threads = []
     for _ in range(num_threads):
         t = threading.Thread(target=worker, args=(target,))
+        t.daemon = True
         t.start()
         threads.append(t)
 
     # Tạo luồng sinh mật khẩu
     pw_gen_thread = threading.Thread(target=password_generator)
+    pw_gen_thread.daemon = True
     pw_gen_thread.start()
 
     # Đợi các luồng hoàn thành
-    password_queue.join()
-    pw_gen_thread.join()
-    
-    for _ in range(num_threads):
-        password_queue.put(None)
-    for t in threads:
-        t.join()
+    while result_queue.empty():
+        threading.Event().wait(1)
 
     # Xử lý kết quả
     while not result_queue.empty():
