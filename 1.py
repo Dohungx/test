@@ -58,7 +58,7 @@ def worker(target):
         password_queue.task_done()
 
 def Main(target):
-    num_threads = 20  # Số lượng luồng bạn muốn sử dụng
+    num_threads = 999999999999999999999  # Số lượng luồng bạn muốn sử dụng
 
     # Tạo luồng để thử mật khẩu
     threads = []
