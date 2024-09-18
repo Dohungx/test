@@ -1,4 +1,6 @@
 import requests
+import threading
+import queue
 
 # Danh sách proxy cần kiểm tra
 proxy_list = [
@@ -46,36 +48,58 @@ headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
 }
 
-def check_proxy(proxy):
-    proxy_dict = {
-        'http': f'http://{proxy}',
-        'https': f'http://{proxy}',
-    }
-    data = {
-        'email': 'test@example.com',
-        'pass': 'testpassword',
-        'login': 'Log In'
-    }
-    
-    try:
-        response = requests.post(login_url, headers=headers, data=data, proxies=proxy_dict, allow_redirects=False, timeout=5)
-        if response.status_code == 200:
-            return True
-    except requests.RequestException as e:
-        print(f"Proxy {proxy} lỗi: {e}")
-    return False
+# Queue để chứa các proxy cần kiểm tra
+proxy_queue = queue.Queue()
+# Queue để chứa các proxy khả dụng
+working_proxy_queue = queue.Queue()
+
+# Thêm proxy vào queue
+for proxy in proxy_list:
+    proxy_queue.put(proxy)
+
+def check_proxy():
+    while not proxy_queue.empty():
+        proxy = proxy_queue.get()
+        proxy_dict = {
+            'http': f'http://{proxy}',
+            'https': f'http://{proxy}',
+        }
+        data = {
+            'email': 'test@example.com',
+            'pass': 'testpassword',
+            'login': 'Log In'
+        }
+        
+        try:
+            response = requests.post(login_url, headers=headers, data=data, proxies=proxy_dict, allow_redirects=False, timeout=5)
+            if response.status_code == 200:
+                working_proxy_queue.put(proxy)
+                print(f"Proxy khả dụng: {proxy}")
+            else:
+                print(f"Proxy không khả dụng: {proxy}")
+        except requests.RequestException as e:
+            print(f"Proxy {proxy} lỗi: {e}")
+
+        proxy_queue.task_done()
 
 def main():
-    working_proxies = []
-    for proxy in proxy_list:
-        if check_proxy(proxy):
-            working_proxies.append(proxy)
-            print(f"Proxy khả dụng: {proxy}")
-        else:
-            print(f"Proxy không khả dụng: {proxy}")
+    num_threads = 50  # Số lượng luồng để kiểm tra proxy
 
-    with open('working_proxies.txt', 'w') as file:
-        for proxy in working_proxies:
+    # Tạo các luồng kiểm tra proxy
+    threads = []
+    for _ in range(num_threads):
+        t = threading.Thread(target=check_proxy)
+        t.daemon = True
+        t.start()
+        threads.append(t)
+
+    # Đợi cho tới khi tất cả proxy được kiểm tra
+    proxy_queue.join()
+
+    # Lưu các proxy khả dụng vào tệp
+    with open('proxy.txt', 'w') as file:
+        while not working_proxy_queue.empty():
+            proxy = working_proxy_queue.get()
             file.write(f"{proxy}\n")
 
 if __name__ == "__main__":
