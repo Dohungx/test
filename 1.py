@@ -40,7 +40,7 @@ def login(target, password):
 
 # Hàm sinh mật khẩu
 def password_generator():
-    length = 1
+    length = 5
     while True:
         for password in itertools.product(characters, repeat=length):
             password_queue.put(''.join(password))
