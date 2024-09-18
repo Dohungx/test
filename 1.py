@@ -82,7 +82,7 @@ def worker(target, proxies):
 
 # Hàm chính để khởi chạy các luồng
 def Main(target):
-    num_threads = 20  # Số luồng để thử nghiệm
+    num_threads = 10  # Số luồng để thử nghiệm
 
     # Lấy danh sách proxy
     proxies = get_proxies()
