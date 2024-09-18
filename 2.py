@@ -40,8 +40,8 @@ proxy_list = [
     "104.207.45.64:3128"
 ]
 
-# URL để kiểm tra
-login_url = "https://www.facebook.com/login.php"
+# URL để kiểm tra proxy
+check_url = "http://testtools.atwebpages.com/"
 
 # Header để mô phỏng trình duyệt thật
 headers = {
@@ -64,19 +64,14 @@ def check_proxy():
             'http': f'http://{proxy}',
             'https': f'http://{proxy}',
         }
-        data = {
-            'email': 'test@example.com',
-            'pass': 'testpassword',
-            'login': 'Log In'
-        }
         
         try:
-            response = requests.post(login_url, headers=headers, data=data, proxies=proxy_dict, allow_redirects=False, timeout=5)
+            response = requests.get(check_url, headers=headers, proxies=proxy_dict, timeout=10)
             if response.status_code == 200:
                 working_proxy_queue.put(proxy)
                 print(f"Proxy khả dụng: {proxy}")
             else:
-                print(f"Proxy không khả dụng: {proxy}")
+                print(f"Proxy không khả dụng: {proxy} (Status code: {response.status_code})")
         except requests.RequestException as e:
             print(f"Proxy {proxy} lỗi: {e}")
 
