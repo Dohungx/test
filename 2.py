@@ -1,4 +1,5 @@
 import requests
+import concurrent.futures
 import time
 
 # URL của API ProxyScrape
@@ -9,10 +10,10 @@ def check_proxy(proxy):
     try:
         response = requests.get("http://testtools.atwebpages.com/", proxies={"http": f"http://{proxy}", "https": f"http://{proxy}"}, timeout=5)
         if response.status_code == 200:
-            return True
+            return proxy
     except requests.RequestException:
         pass
-    return False
+    return None
 
 # Lấy danh sách proxy từ ProxyScrape
 def get_proxies():
@@ -32,15 +33,20 @@ def filter_proxies():
         return
 
     available_proxies = []
-    for proxy in proxies:
-        print(f"Checking proxy: {proxy}")
-        if check_proxy(proxy):
-            available_proxies.append(proxy)
-            print(f"Proxy {proxy} is working.")
-        else:
-            print(f"Proxy {proxy} is not working.")
-        time.sleep(1)  # Đợi một chút để không gửi quá nhiều yêu cầu nhanh chóng
 
+    # Kiểm tra proxy song song
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        future_to_proxy = {executor.submit(check_proxy, proxy): proxy for proxy in proxies}
+        for future in concurrent.futures.as_completed(future_to_proxy):
+            proxy = future_to_proxy[future]
+            result = future.result()
+            if result:
+                available_proxies.append(result)
+                print(f"Proxy {result} is working.")
+            else:
+                print(f"Proxy {proxy} is not working.")
+
+    # Lưu proxy khả dụng vào tệp proxy.txt
     with open('proxy.txt', 'w') as file:
         for proxy in available_proxies:
             file.write(proxy + '\n')
