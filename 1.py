@@ -3,7 +3,6 @@ import requests
 import threading
 import queue
 import random
-import json
 
 # Các ký tự để thử trong mật khẩu
 characters = "QWERTYUIOPASDFGHJKLZXCVBNMqwertyuiopasdfghjklzxcvbnm1234567890.?!@"
